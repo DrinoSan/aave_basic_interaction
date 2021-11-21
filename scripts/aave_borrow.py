@@ -48,7 +48,7 @@ def main():
     print("We borrows some DAI")
     get_borrowable_data(lending_pool, account)
 
-    repay_all(amount, lending_pool, account)
+    # repay_all(amount, lending_pool, account)
     print("You just deposited, borrowed and repayed with Aave, Brownie and Chainlink")
 
 
