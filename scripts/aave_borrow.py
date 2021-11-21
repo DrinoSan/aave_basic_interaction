@@ -1,4 +1,4 @@
-from brownie import network, config, interface
+from brownie import accounts, network, config, interface
 from scripts.get_weth import get_weth
 from scripts.helpful_scripts import get_account
 from web3 import Web3
@@ -24,6 +24,58 @@ def main():
     tx = lending_pool.deposit(erc20_address, amount, account, 0, {"from": account})
     tx.wait(1)
     print("Deposited!")
+    # ... how much to borrow?
+    borrowable_eth, total_dept = get_borrowable_data(lending_pool, account)
+    print("Let's borrow")
+    # DAI in terms of ETH
+    dai_eth_price = get_asset_price(
+        config["networks"][network.show_active()]["dai_eth_price_feed"]
+    )
+    amount_dai_to_borrow = (1 / dai_eth_price) * (borrowable_eth * 0.95)
+    # borrowable_eth -> borrowable_dai * 0.95 ( the 0.95 are for a better health factor)
+    print(f"We are going to borrow {amount_dai_to_borrow} DAI")
+    # Now we will borrow
+    dai_address = config["networks"][network.show_active()]["dai_token"]
+    borrow_tx = lending_pool.borrow(
+        dai_address,
+        Web3.toWei(amount_dai_to_borrow, "ether"),
+        1,
+        0,
+        account.address,
+        {"from": account},
+    )
+    borrow_tx.wait(1)
+    print("We borrows some DAI")
+    get_borrowable_data(lending_pool, account)
+
+    # function borrow(address asset, uint256 amount, uint256 interestRateMode, uint16 referralCode, address onBehalfOf)
+
+
+def get_asset_price(price_feed_address):
+    dai_eth_price_feed = interface.AggregatorV3Interface(price_feed_address)
+    latest_price = dai_eth_price_feed.latestRoundData()[1]
+    converted_latest_price = Web3.fromWei(latest_price, "ether")
+    print(f"The latest DAI/ETH price is: {converted_latest_price}")
+    return float(converted_latest_price)
+    # 0.000230213930000000
+
+
+def get_borrowable_data(lending_pool, account):
+    (
+        totalCollateralETH,
+        totalDebtETH,
+        availableBorrowsETH,
+        currentLiquidationThreshold,
+        ltv,
+        healthFactor,
+    ) = lending_pool.getUserAccountData(account.address)
+    availableBorrowsETH = Web3.fromWei(availableBorrowsETH, "ether")
+    totalDebtETH = Web3.fromWei(totalDebtETH, "ether")
+    totalCollateralETH = Web3.fromWei(totalCollateralETH, "ether")
+    print(f"You have {totalCollateralETH} worth of ETH deposited")
+    print(f"You have {totalDebtETH} worth of ETH borrowd")
+    print(f"You can borrow {availableBorrowsETH} worth of ETH")
+    return (float(availableBorrowsETH), float(totalDebtETH))
 
 
 def approve_erc20(amount, spender, erc20_address, account):
